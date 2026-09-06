@@ -417,16 +417,18 @@ async function main() {
   // ── 14. get_library_catalog ──────────────────────────────────────────────
   server.tool(
     "get_library_catalog",
-    "Search the user's Logos library catalog for owned resources by type, author, or keyword. Returns matching resources with title, author, resource ID, and type. Useful for finding resources to open with open_resource.",
+    "Search the user's Logos library catalog by type, author, keyword or language. By default returns only LICENSED resources (the catalog also lists titles merely available for purchase; pass licensed_only=false to include them — they are flagged 'sin licencia'). Returns title, author, resource ID, type, languages and license status. Useful for finding resources to open with open_resource.",
     {
       type: z.string().optional().describe("Filter by resource type — accepts a human label (e.g., 'commentary') or a raw dotted type (e.g., 'text.monograph.commentary.bible')"),
       query: z.string().optional().describe("Search titles, descriptions, and subjects"),
       author: z.string().optional().describe("Filter by author name"),
+      language: z.string().optional().describe("ISO language code, e.g. 'es' (Spanish), 'en', 'grc' (Greek), 'he' (Hebrew)"),
+      licensed_only: z.boolean().optional().describe("Only resources the user actually owns (default: true). Set false to also see catalog entries not licensed."),
       limit: z.number().optional().describe("Max results to return (default: 25)"),
     },
-    async ({ type, query, author, limit }) => {
+    async ({ type, query, author, language, licensed_only, limit }) => {
       try {
-        const resources = searchCatalog({ type, query, author, limit: limit ?? 25 });
+        const resources = searchCatalog({ type, query, author, language, licensedOnly: licensed_only ?? true, limit: limit ?? 25 });
         if (resources.length === 0) {
           if (type) {
             return text(`No resources matched type '${type}'. The type filter accepts either a human label from get_resource_types (e.g. 'Commentary') or a raw dotted type (e.g. 'text.monograph.commentary.bible'). Call get_resource_types to see valid labels, or remove the filter.`);
@@ -436,9 +438,12 @@ async function main() {
         const lines = resources.map((r) => {
           const authorStr = r.authors ? ` — ${r.authors}` : "";
           const label = typeLabel(r.type);
-          return `- **${r.title}**${authorStr}\n  ID: \`${r.resourceId}\` | Type: ${label}`;
+          const lang = r.languages ? ` | Lang: ${r.languages}` : "";
+          const lic = r.licensed ? "" : " | ⚠️ sin licencia (not owned)";
+          return `- **${r.title}**${authorStr}\n  ID: \`${r.resourceId}\` | Type: ${label}${lang}${lic}`;
         });
-        return text(`Found ${resources.length} resources:\n\n${lines.join("\n\n")}`);
+        const scope = licensed_only === false ? "catalog entries (licensed and not)" : "licensed resources";
+        return text(`Found ${resources.length} ${scope}:\n\n${lines.join("\n\n")}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         return err(`Library catalog error: ${msg}`);
@@ -622,11 +627,14 @@ async function main() {
   // ── 22. get_resource_types ────────────────────────────────────────────────
   server.tool(
     "get_resource_types",
-    "Get a summary of resource types and counts in the user's Logos library. Returns each type's label and count. Useful for choosing a type filter for get_library_catalog.",
-    {},
-    async () => {
+    "Get a summary of resource types and counts in the user's Logos library (licensed resources only by default). Returns each type's label and count. Useful for choosing a type filter for get_library_catalog.",
+    {
+      language: z.string().optional().describe("Restrict counts to one ISO language code, e.g. 'es'"),
+      licensed_only: z.boolean().optional().describe("Count only owned resources (default: true)"),
+    },
+    async ({ language, licensed_only }) => {
       try {
-        const summary = getResourceTypeSummary();
+        const summary = getResourceTypeSummary({ language, licensedOnly: licensed_only ?? true });
         if (summary.length === 0) return text("No resources found in library catalog.");
         const total = summary.reduce((sum, s) => sum + s.count, 0);
         const lines = summary.map((s) => `- **${s.label}**: ${s.count}`);

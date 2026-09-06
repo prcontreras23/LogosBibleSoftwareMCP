@@ -145,6 +145,10 @@ export interface CatalogResource {
   subjects: string | null;
   description: string | null;
   publicationDate: string | null;
+  /** ISO language codes as stored by Logos, e.g. "es" or "en grc" */
+  languages: string | null;
+  /** true when the catalog marks the resource as licensed/downloaded (Availability = 2) */
+  licensed: boolean;
 }
 
 export interface ResourceTypeSummary {

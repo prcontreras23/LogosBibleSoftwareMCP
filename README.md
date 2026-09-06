@@ -229,6 +229,10 @@ macOS:    ~/Library/Application Support/Logos4/Documents/<instance-id>/
 Windows:  %LOCALAPPDATA%\Logos\Documents\<instance-id>\
 ```
 
+### Licensed vs. unlicensed resources
+
+The Logos catalog also lists titles that are only available for purchase or preview. `get_library_catalog` and `get_resource_types` return **licensed resources only** by default (catalog `Availability = 2`, which matches the resource files actually downloaded); pass `licensed_only: false` to include the rest, which are flagged *sin licencia*. Both tools also accept `language` (ISO code such as `es`, `en`, `grc`, `he`).
+
 ### Default Bible and Spanish references
 
 Bible-text tools default to the Lexham English Bible (LEB). Set `LOGOS_DEFAULT_BIBLE` in the `env` block to change it (e.g. `"LOGOS_DEFAULT_BIBLE": "RVR60"` for Reina-Valera 1960; run `get_available_bibles` for the codes). References are accepted with English or Spanish book names and common abbreviations (`Romans 8:28`, `Romanos 8:28`, `Ro 8:28`, `1 Co 1:4-9`, `Sal 23`), accents optional.
