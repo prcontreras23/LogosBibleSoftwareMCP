@@ -93,6 +93,34 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+/**
+ * Join consecutive screens, dropping the text a Page Down leaves visible from
+ * the previous screen. Finds the longest suffix of `acc` (≥ minOverlap chars)
+ * that is a prefix of `next`, comparing on whitespace-normalised text.
+ */
+export function mergeOverlap(acc: string, next: string, minOverlap = 40): string {
+  if (!acc) return next;
+  if (!next) return acc;
+  const norm = (t: string) => t.replace(/\s+/g, " ").trim();
+  const a = norm(acc);
+  const b = norm(next);
+  const max = Math.min(a.length, b.length);
+  for (let len = max; len >= minOverlap; len--) {
+    if (a.endsWith(b.slice(0, len))) {
+      // Map the normalised cut back onto `next`: skip the same number of
+      // non-whitespace characters.
+      let nonWs = b.slice(0, len).replace(/ /g, "").length;
+      let i = 0;
+      while (i < next.length && nonWs > 0) {
+        if (!/\s/.test(next[i])) nonWs--;
+        i++;
+      }
+      return `${acc.trimEnd()}\n${next.slice(i).trimStart()}`;
+    }
+  }
+  return `${acc}\n\n${next}`;
+}
+
 /** Split the Logos copy into body text and its trailing %X citation lines. */
 export function splitCitation(raw: string): { body: string; citation: Record<string, string> } {
   const lines = raw.replace(/\r\n?/g, "\n").split("\n");
@@ -232,5 +260,6 @@ export async function readPanelText(pages = 1, panel: PanelSelector = "largest")
     });
   }
 
-  return { text: chunks.join("\n\n"), citation, pages: chunks.length, window: win.name };
+  const text = chunks.reduce((acc, c) => mergeOverlap(acc, c), "");
+  return { text, citation, pages: chunks.length, window: win.name };
 }

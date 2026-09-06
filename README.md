@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that c
 
 ## What This Does
 
-- **29 MCP tools** that let Claude read Bible text, search Scripture, navigate Logos, access your notes/highlights/favorites/clippings, check reading plans, explore word studies and factbook entries, search your library catalog, open commentaries and lexicons, run cross-resource searches, capture Logos panels for vision reading, check what Logos is showing, and diagnose environment issues
+- **30 MCP tools** that let Claude read Bible text, search Scripture, navigate Logos, access your notes/highlights/favorites/clippings, check reading plans, explore word studies and factbook entries, search your library catalog, open commentaries and lexicons, run cross-resource searches, capture Logos panels for vision reading, check what Logos is showing, and diagnose environment issues
 - **A Socratic Bible Study agent** that guides you through Scripture using questions (not lectures), welcoming any denominational background, with four questioning layers: Observation, Interpretation, Correlation, and Application
 - **A QA Tool Tester agent** that systematically exercises all tools and produces a pass/fail/skip report
 
@@ -72,7 +72,7 @@ BIBLIA_API_KEY=your_api_key_here
 claude
 ```
 
-Once Claude Code starts, type `/mcp` to check that the "logos" server appears with 29 tools.
+Once Claude Code starts, type `/mcp` to check that the "logos" server appears with 30 tools.
 
 ## Using with Claude Desktop or Cowork
 
@@ -228,6 +228,10 @@ The server auto-detects your Logos data by scanning for the per-install instance
 macOS:    ~/Library/Application Support/Logos4/Documents/<instance-id>/
 Windows:  %LOCALAPPDATA%\Logos\Documents\<instance-id>\
 ```
+
+### Reading resource text (macOS)
+
+Logos resource files are encrypted and the reader panel exposes no accessibility tree, so text is read through the app itself: `read_panel_text` drag-selects the visible panel, copies it and returns the text plus the citation Logos attaches; `pages` scrolls and reads several screens (overlaps removed). `read_resource_at` does the whole thing in one call: open a resource at a passage, wait, read. Every "opens the Logos UI" tool (navigate_passage, open_resource, open_guide, search_all, open_word_study, open_factbook) can be followed by `read_panel_text` to get what it opened as text. Requires Accessibility permission for the host app and an uncovered Logos window.
 
 ### Your own Logos documents
 

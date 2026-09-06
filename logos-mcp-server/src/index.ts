@@ -22,7 +22,7 @@ import {
 } from "./services/sqlite-reader.js";
 import { searchCatalog, getResourceTypeSummary, typeLabel } from "./services/catalog-reader.js";
 import { captureLogosPanel, getLogosWindowTitles } from "./services/screenshot-capture.js";
-import { readPanelText } from "./services/panel-text.js";
+import { readPanelText, type PanelSelector } from "./services/panel-text.js";
 import { getSermons, getSermon, getReadingPlans, getPassageLists } from "./services/documents-reader.js";
 import type { CaptureToolType } from "./types.js";
 
@@ -72,7 +72,7 @@ async function main() {
   // ── 1. navigate_passage ──────────────────────────────────────────────────
   server.tool(
     "navigate_passage",
-    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. Open a Bible passage in the Logos Bible Software UI. Provide a reference like 'Genesis 1:1' or 'Romans 8:28-30'. Use to show the user a passage in Logos, or to position the app before capture_panel_screenshot.",
+    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. To READ what it opens, follow with read_panel_text (text) or capture_panel_screenshot (image). Open a Bible passage in the Logos Bible Software UI. Provide a reference like 'Genesis 1:1' or 'Romans 8:28-30'. Use to show the user a passage in Logos, or to position the app before capture_panel_screenshot.",
     { reference: z.string().describe("Bible reference (e.g., 'Genesis 1:1', 'Romans 8:28-30')") },
     async ({ reference }) => {
       if (!(await isLogosRunning())) {
@@ -80,7 +80,7 @@ async function main() {
       }
       const result = await navigateToPassage(reference);
       return result.success
-        ? text(`Dispatched to Logos: Bible passage ${reference}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or capture_panel_screenshot (panel_type: 'bible') to see the results.`)
+        ? text(`Dispatched to Logos: Bible passage ${reference}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the passage text from the user's own Bible (e.g. LBLA).`)
         : err(`Failed to open passage: ${result.error}`);
     }
   );
@@ -355,7 +355,7 @@ async function main() {
   // ── 11. open_word_study ──────────────────────────────────────────────────
   server.tool(
     "open_word_study",
-    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. Open a word study in Logos for a Greek, Hebrew, or English word. Use to study a word in its original-language resources, or to position Logos before capture_panel_screenshot.",
+    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. To READ what it opens, follow with read_panel_text (text) or capture_panel_screenshot (image). Open a word study in Logos for a Greek, Hebrew, or English word. Use to study a word in its original-language resources, or to position Logos before capture_panel_screenshot.",
     { word: z.string().describe("The word to study (e.g., 'agape', 'hesed', 'justification')") },
     async ({ word }) => {
       if (!(await isLogosRunning())) {
@@ -363,7 +363,7 @@ async function main() {
       }
       const result = await openWordStudy(word);
       return result.success
-        ? text(`Dispatched to Logos: word study for "${word}". This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or capture_panel_screenshot (panel_type: 'wordstudy') to see the results.`)
+        ? text(`Dispatched to Logos: word study for "${word}". This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the word study as text.`)
         : err(`Failed to open word study: ${result.error}`);
     }
   );
@@ -371,7 +371,7 @@ async function main() {
   // ── 12. open_factbook ────────────────────────────────────────────────────
   server.tool(
     "open_factbook",
-    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. Open the Logos Factbook for a person, place, event, or topic (e.g., 'Moses', 'Jerusalem', 'Passover'). Use to look up background information, or to position Logos before capture_panel_screenshot.",
+    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. To READ what it opens, follow with read_panel_text (text) or capture_panel_screenshot (image). Open the Logos Factbook for a person, place, event, or topic (e.g., 'Moses', 'Jerusalem', 'Passover'). Use to look up background information, or to position Logos before capture_panel_screenshot.",
     { topic: z.string().describe("The topic to look up (e.g., 'Moses', 'Jerusalem', 'Passover')") },
     async ({ topic }) => {
       if (!(await isLogosRunning())) {
@@ -379,7 +379,7 @@ async function main() {
       }
       const result = await openFactbook(topic);
       return result.success
-        ? text(`Dispatched to Logos: Factbook entry for "${topic}". This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or capture_panel_screenshot (panel_type: 'factbook') to see the results.`)
+        ? text(`Dispatched to Logos: Factbook entry for "${topic}". This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the Factbook entry as text.`)
         : err(`Failed to open Factbook: ${result.error}`);
     }
   );
@@ -455,7 +455,7 @@ async function main() {
   // ── 15. open_resource ─────────────────────────────────────────────────────
   server.tool(
     "open_resource",
-    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. Open a specific resource (commentary, lexicon, etc.) in Logos, optionally at a Bible passage. Use to show the user a resource, or to position Logos before capture_panel_screenshot.",
+    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. To READ what it opens, follow with read_panel_text (text) or capture_panel_screenshot (image). Open a specific resource (commentary, lexicon, etc.) in Logos, optionally at a Bible passage. Use to show the user a resource, or to position Logos before capture_panel_screenshot.",
     {
       resource_id: z.string().describe("Resource ID from the library catalog (e.g., 'LLS:CLVNCOMM')"),
       reference: z.string().optional().describe("Bible reference to navigate to within the resource (e.g., 'Romans 12:1')"),
@@ -467,7 +467,7 @@ async function main() {
       const result = await openResource(resource_id, reference);
       const refStr = reference ? ` at ${reference}` : "";
       return result.success
-        ? text(`Dispatched to Logos: resource \`${resource_id}\`${refStr}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or capture_panel_screenshot (panel_type: 'resource') to see the results.`)
+        ? text(`Dispatched to Logos: resource \`${resource_id}\`${refStr}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get its text (or read_resource_at to open and read in one step).`)
         : err(`Failed to open resource: ${result.error}`);
     }
   );
@@ -475,7 +475,7 @@ async function main() {
   // ── 16. open_guide ────────────────────────────────────────────────────────
   server.tool(
     "open_guide",
-    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. Open an Exegetical Guide, Passage Guide, or other guide type in Logos for a Bible passage. Use to run a guide on a passage, or to position Logos before capture_panel_screenshot.",
+    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. To READ what it opens, follow with read_panel_text (text) or capture_panel_screenshot (image). Open an Exegetical Guide, Passage Guide, or other guide type in Logos for a Bible passage. Use to run a guide on a passage, or to position Logos before capture_panel_screenshot.",
     {
       guide_type: z.string().describe("Guide template name (e.g., 'Exegetical Guide', 'Passage Guide')"),
       reference: z.string().describe("Bible reference (e.g., 'Romans 12:1', 'John 3:16')"),
@@ -486,7 +486,7 @@ async function main() {
       }
       const result = await openGuide(guide_type, reference);
       return result.success
-        ? text(`Dispatched to Logos: ${guide_type} for ${reference}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or capture_panel_screenshot (panel_type: 'guide') to see the results.`)
+        ? text(`Dispatched to Logos: ${guide_type} for ${reference}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the guide contents as text.`)
         : err(`Failed to open guide: ${result.error}`);
     }
   );
@@ -494,7 +494,7 @@ async function main() {
   // ── 17. search_all ────────────────────────────────────────────────────────
   server.tool(
     "search_all",
-    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. Search across ALL resources in the Logos library (not just Bible text). Use for broad research, or to position Logos before capture_panel_screenshot.",
+    "SIDE EFFECT ONLY — opens the Logos UI on screen; returns no data. To READ what it opens, follow with read_panel_text (text) or capture_panel_screenshot (image). Search across ALL resources in the Logos library (not just Bible text). Use for broad research, or to position Logos before capture_panel_screenshot.",
     {
       query: z.string().describe("Search query (e.g., 'justification by faith', 'baptism')"),
     },
@@ -504,7 +504,7 @@ async function main() {
       }
       const result = await searchAll(query);
       return result.success
-        ? text(`Dispatched to Logos: search for "${query}" across all resources. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or capture_panel_screenshot (panel_type: 'searchall') to see the results.`)
+        ? text(`Dispatched to Logos: search for "${query}" across all resources. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the result list as text.`)
         : err(`Failed to open search: ${result.error}`);
     }
   );
@@ -640,6 +640,33 @@ async function main() {
         return text(`Found ${lists.length} passage lists:\n\n${lines.join("\n\n")}`);
       } catch (e) {
         return err(`Passage list database error: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  );
+
+  // ── 30. read_resource_at ──────────────────────────────────────────────────
+  server.tool(
+    "read_resource_at",
+    "ONE-STEP READ: open a Logos resource (commentary, lexicon, book) at a Bible passage and return its TEXT. Combines open_resource + read_panel_text: dispatches the logosres: link, waits for Logos to render, then drag-selects and copies the panel screen by screen (overlaps removed) and returns the text with the citation Logos attaches. Get resource_id from get_library_catalog. Spanish or English references accepted ('1 Corintios 1:4', 'Romans 8'). macOS only; takes over mouse/keyboard for a few seconds and the Logos window must be visible.",
+    {
+      resource_id: z.string().describe("Logos resource ID (e.g. 'LLS:CMNTRBBLCDVNTST6')"),
+      reference: z.string().optional().describe("Bible reference to open at, e.g. '1 Corintios 1:4-9'"),
+      pages: z.number().int().min(1).max(20).optional().describe("Screens to read (default: 3)"),
+      panel: z.union([z.enum(["left", "right", "largest"]), z.number().int().min(1)]).optional().describe("Panel to read if several are open (default: 'largest'). Logos opens the resource in its active panel."),
+      wait_ms: z.number().int().min(500).max(15000).optional().describe("Wait after opening before reading (default: 2500)"),
+    },
+    async ({ resource_id, reference, pages, panel, wait_ms }) => {
+      if (!(await isLogosRunning())) return err("Logos is not running. Launch Logos first.");
+      const opened = await openResource(resource_id, reference);
+      if (!opened.success) return err(`Failed to open resource: ${opened.error ?? "unknown error"}`);
+      await new Promise((r) => setTimeout(r, wait_ms ?? 2500));
+      try {
+        const result = await readPanelText(pages ?? 3, (panel as PanelSelector | undefined) ?? "largest");
+        const cite = Object.entries(result.citation).map(([k, v]) => `${k}: ${v}`).join(" · ");
+        const header = `${resource_id}${reference ? ` @ ${reference}` : ""} — ${result.pages} screen(s)${cite ? `\nCitation — ${cite}` : ""}\n\n`;
+        return text(header + result.text);
+      } catch (e) {
+        return err(e instanceof Error ? e.message : String(e));
       }
     }
   );
