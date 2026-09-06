@@ -89,7 +89,8 @@ export interface PanelTextResult {
   window: string;
 }
 
-async function ensureDragHelper(): Promise<void> {
+/** Compile the CGEvent drag helper if missing (exported so installers can pre-build it). */
+export async function ensureDragHelper(): Promise<void> {
   if (existsSync(DRAG_HELPER_BIN)) return;
   mkdirSync(HELPER_CACHE_DIR, { recursive: true, mode: 0o700 });
   writeFileSync(DRAG_HELPER_SRC, SWIFT_SOURCE);

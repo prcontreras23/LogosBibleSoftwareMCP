@@ -71,7 +71,8 @@ int main(int argc, const char * argv[]) {
 
 // ─── Helper compilation ─────────────────────────────────────────────────────
 
-async function ensureHelper(): Promise<void> {
+/** Compile the CGWindowList helper if missing (exported so installers can pre-build it). */
+export async function ensureHelper(): Promise<void> {
   if (!existsSync(WINDOW_HELPER_BIN)) {
     mkdirSync(HELPER_CACHE_DIR, { recursive: true, mode: 0o700 });
     writeFileSync(WINDOW_HELPER_SRC, OBJ_C_SOURCE);
