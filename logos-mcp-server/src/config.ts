@@ -135,7 +135,9 @@ export const DB_PATHS = {
 
 export const BIBLIA_API_KEY = process.env.BIBLIA_API_KEY ?? "";
 export const BIBLIA_API_BASE = "https://api.biblia.com/v1/bible";
-export const DEFAULT_BIBLE = "LEB";
+// Default Bible for the Biblia-backed text tools. Override with
+// LOGOS_DEFAULT_BIBLE (e.g. RVR60, KJV); see get_available_bibles.
+export const DEFAULT_BIBLE = (process.env.LOGOS_DEFAULT_BIBLE ?? "LEB").toUpperCase();
 
 // ─── Logos URL Schemes ───────────────────────────────────────────────────────
 

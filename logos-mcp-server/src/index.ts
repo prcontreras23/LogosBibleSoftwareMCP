@@ -5,7 +5,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { existsSync } from "fs";
 import Database from "better-sqlite3";
-import { SERVER_NAME, SERVER_VERSION, LOGOS_DATA_DIR, LOGOS_CATALOG_DIR, DB_PATHS, BIBLIA_API_KEY } from "./config.js";
+import { SERVER_NAME, SERVER_VERSION, LOGOS_DATA_DIR, LOGOS_CATALOG_DIR, DB_PATHS, BIBLIA_API_KEY, DEFAULT_BIBLE } from "./config.js";
 
 // Service imports
 import { getBibleText, searchBible, scanReferences, comparePassages, getAvailableBibles } from "./services/biblia-api.js";
@@ -87,11 +87,11 @@ async function main() {
   // ── 2. get_bible_text ────────────────────────────────────────────────────
   server.tool(
     "get_bible_text",
-    "Retrieve the text of a Bible passage. Defaults to the Lexham English Bible (LEB). Provide a reference like 'Genesis 1:1-5' or 'Romans 8:28-30'. Returns the passage text with its version. Useful for reading Scripture directly when the Logos app isn't running or when plain text is enough.",
+    `Retrieve the text of a Bible passage. Default version: ${DEFAULT_BIBLE} (set LOGOS_DEFAULT_BIBLE to change). Provide a reference like 'Genesis 1:1-5', 'Romans 8:28-30' or 'Romanos 8:28-30' (English and Spanish book names accepted). Returns the passage text with its version. Useful for reading Scripture directly when the Logos app isn't running or when plain text is enough.`,
     {
       passage: z.string().describe("Bible reference (e.g., 'Genesis 1:1-5', 'John 3:16')"),
       bible: z.string().optional()
-        .describe("Bible version code, case-insensitive (default LEB; also KJV, ASV, DARBY, YLT, WEB and more). Served by the free Biblia web API (requires network + BIBLIA_API_KEY), NOT the user's Logos library. Call get_available_bibles for the full list."),
+        .describe(`Bible version code, case-insensitive (default ${DEFAULT_BIBLE}; also RVR60, RVA, LEB, KJV, ASV and more). Served by the free Biblia web API (requires network + BIBLIA_API_KEY), NOT the user's Logos library. Call get_available_bibles for the full list.`),
     },
     async ({ passage, bible }) => {
       try {
@@ -115,7 +115,7 @@ async function main() {
       passage: z.string().describe("Bible reference to center on"),
       context_verses: z.number().optional().describe("Verses before/after to include (default: 5)"),
       bible: z.string().optional()
-        .describe("Bible version code, case-insensitive (default LEB; also KJV, ASV, DARBY, YLT, WEB and more). Served by the free Biblia web API (requires network + BIBLIA_API_KEY), NOT the user's Logos library. Call get_available_bibles for the full list."),
+        .describe(`Bible version code, case-insensitive (default ${DEFAULT_BIBLE}; also RVR60, RVA, LEB, KJV, ASV and more). Served by the free Biblia web API (requires network + BIBLIA_API_KEY), NOT the user's Logos library. Call get_available_bibles for the full list.`),
     },
     async ({ passage, context_verses, bible }) => {
       try {
@@ -140,7 +140,7 @@ async function main() {
       query: z.string().describe("Search terms (e.g., 'justification by faith')"),
       limit: z.number().optional().describe("Max results (default: 20)"),
       bible: z.string().optional()
-        .describe("Bible version code, case-insensitive (default LEB; also KJV, ASV, DARBY, YLT, WEB and more). Served by the free Biblia web API (requires network + BIBLIA_API_KEY), NOT the user's Logos library. Call get_available_bibles for the full list."),
+        .describe(`Bible version code, case-insensitive (default ${DEFAULT_BIBLE}; also RVR60, RVA, LEB, KJV, ASV and more). Served by the free Biblia web API (requires network + BIBLIA_API_KEY), NOT the user's Logos library. Call get_available_bibles for the full list.`),
     },
     async ({ query, limit, bible }) => {
       try {
