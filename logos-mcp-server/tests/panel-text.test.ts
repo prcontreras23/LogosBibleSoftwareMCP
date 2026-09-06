@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { splitCitation, mergeOverlap } from "../src/services/panel-text.js";
+import { parseTextOffsets } from "../src/services/panel-text.js";
 
 describe("splitCitation", () => {
   it("separates body from the %X citation block", () => {
@@ -27,5 +28,22 @@ describe("mergeOverlap", () => {
   it("keeps both when there is no overlap", () => {
     expect(mergeOverlap("aaa", "bbb")).toBe("aaa\n\nbbb");
     expect(mergeOverlap("", "bbb")).toBe("bbb");
+  });
+});
+
+describe("parseTextOffsets (LOGOS_PANEL_TEXT_OFFSETS)", () => {
+  const d = { top: 165, left: 20, right: 40, bottom: 10 };
+  it("returns defaults when unset or blank", () => {
+    expect(parseTextOffsets(undefined, d)).toEqual(d);
+    expect(parseTextOffsets("  ", d)).toEqual(d);
+  });
+  it("parses top,left,right,bottom", () => {
+    expect(parseTextOffsets("130, 20,40 ,10", d)).toEqual({ top: 130, left: 20, right: 40, bottom: 10 });
+  });
+  it("falls back on malformed values", () => {
+    expect(parseTextOffsets("130,20,40", d)).toEqual(d);
+    expect(parseTextOffsets("a,b,c,d", d)).toEqual(d);
+    expect(parseTextOffsets("-5,20,40,10", d)).toEqual(d);
+    expect(parseTextOffsets("1.5,20,40,10", d)).toEqual(d);
   });
 });

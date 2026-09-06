@@ -28,19 +28,38 @@ const execFileAsync = promisify(execFile);
 const DRAG_HELPER_BIN = join(HELPER_CACHE_DIR, "logos-drag-helper");
 const DRAG_HELPER_SRC = join(HELPER_CACHE_DIR, "logos-drag-helper.swift");
 
-// Region of the window that holds the reading text. Measured on Logos v48
-// with the standard panel chrome (tab bar + toolbar + locator bar ≈ 160 px).
-const TEXT_TOP_OFFSET = 165;
-const TEXT_LEFT_OFFSET = 20;
-const TEXT_RIGHT_OFFSET = 40; // leaves the scrollbar out of the selection
-const TEXT_BOTTOM_OFFSET = 10;
-// When no panel window can be told apart and we fall back to the whole app
-// window, its left edge is Logos' icon sidebar (~46 px): a drag starting there
-// clicks a sidebar button instead of selecting text. Skip past it.
-const MAIN_WINDOW_SIDEBAR_WIDTH = 60;
+// Region of the panel that holds the reading text, as offsets from the panel
+// edges. Defaults were measured on Logos v48 (macOS) with the standard panel
+// chrome (tab bar + toolbar + locator bar ≈ 160 px). If Logos changes its
+// layout, or the locator bar is hidden, or the UI is scaled, override with
+// LOGOS_PANEL_TEXT_OFFSETS="top,left,right,bottom" (pixels), e.g. "130,20,40,10".
+// LOGOS_DEBUG=1 prints the drag rectangle actually used, to help calibrate.
+export interface TextOffsets { top: number; left: number; right: number; bottom: number }
+
+const DEFAULT_TEXT_OFFSETS: TextOffsets = { top: 165, left: 20, right: 40, bottom: 10 };
+
+/** Parse LOGOS_PANEL_TEXT_OFFSETS; falls back to the defaults on any malformed value. */
+export function parseTextOffsets(env: string | undefined, defaults: TextOffsets = DEFAULT_TEXT_OFFSETS): TextOffsets {
+  if (!env || !env.trim()) return defaults;
+  const parts = env.split(",").map((p) => p.trim());
+  if (parts.length !== 4) return defaults;
+  const nums = parts.map((p) => Number(p));
+  if (nums.some((n) => !Number.isInteger(n) || n < 0 || n > 2000)) return defaults;
+  return { top: nums[0], left: nums[1], right: nums[2], bottom: nums[3] };
+}
+
+const TEXT_OFFSETS = parseTextOffsets(process.env.LOGOS_PANEL_TEXT_OFFSETS);
 // A real screen of text is hundreds of chars; anything shorter means the
 // drag selected a stray word (e.g. it became a drag-and-drop) — retry.
 const MIN_BODY_CHARS = 40;
+// When no panel window can be told apart and we fall back to the whole app
+// window, its left edge is Logos' icon sidebar (~46 px): a drag starting there
+// clicks a sidebar button instead of selecting text. Skip past it. Override
+// with LOGOS_SIDEBAR_WIDTH (pixels).
+const MAIN_WINDOW_SIDEBAR_WIDTH = (() => {
+  const n = Number(process.env.LOGOS_SIDEBAR_WIDTH);
+  return Number.isInteger(n) && n >= 0 && n <= 500 ? n : 60;
+})();
 
 const SWIFT_SOURCE = `
 import Foundation
@@ -237,10 +256,16 @@ export async function readPanelTextUnlocked(pages = 1, panel: PanelSelector = "l
   await ensureLogosFrontmost();
   await sleep(300);
 
-  const x1 = win.x + TEXT_LEFT_OFFSET;
-  const y1 = win.y + TEXT_TOP_OFFSET;
-  const x2 = win.x + win.width - TEXT_RIGHT_OFFSET;
-  const y2 = win.y + win.height - TEXT_BOTTOM_OFFSET;
+  const x1 = win.x + TEXT_OFFSETS.left;
+  const y1 = win.y + TEXT_OFFSETS.top;
+  const x2 = win.x + win.width - TEXT_OFFSETS.right;
+  const y2 = win.y + win.height - TEXT_OFFSETS.bottom;
+  if (x2 - x1 < 100 || y2 - y1 < 60) {
+    throw new Error(
+      `Text region too small (${x2 - x1}×${y2 - y1} px) for panel at ${win.x},${win.y} ${win.width}×${win.height}. Check LOGOS_PANEL_TEXT_OFFSETS (current: ${TEXT_OFFSETS.top},${TEXT_OFFSETS.left},${TEXT_OFFSETS.right},${TEXT_OFFSETS.bottom}) or enlarge the Logos window.`
+    );
+  }
+  if (process.env.LOGOS_DEBUG) console.error(`[read_panel_text] panel=(${win.x},${win.y} ${win.width}×${win.height}) offsets=${JSON.stringify(TEXT_OFFSETS)} drag=(${x1},${y1})→(${x2},${y2})`);
 
   const chunks: string[] = [];
   let citation: Record<string, string> = {};
