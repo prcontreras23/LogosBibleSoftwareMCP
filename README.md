@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that c
 
 ## What This Does
 
-- **24 MCP tools** that let Claude read Bible text, search Scripture, navigate Logos, access your notes/highlights/favorites/clippings, check reading plans, explore word studies and factbook entries, search your library catalog, open commentaries and lexicons, run cross-resource searches, capture Logos panels for vision reading, check what Logos is showing, and diagnose environment issues
+- **25 MCP tools** that let Claude read Bible text, search Scripture, navigate Logos, access your notes/highlights/favorites/clippings, check reading plans, explore word studies and factbook entries, search your library catalog, open commentaries and lexicons, run cross-resource searches, capture Logos panels for vision reading, check what Logos is showing, and diagnose environment issues
 - **A Socratic Bible Study agent** that guides you through Scripture using questions (not lectures), welcoming any denominational background, with four questioning layers: Observation, Interpretation, Correlation, and Application
 - **A QA Tool Tester agent** that systematically exercises all tools and produces a pass/fail/skip report
 
@@ -72,7 +72,7 @@ BIBLIA_API_KEY=your_api_key_here
 claude
 ```
 
-Once Claude Code starts, type `/mcp` to check that the "logos" server appears with 24 tools.
+Once Claude Code starts, type `/mcp` to check that the "logos" server appears with 25 tools.
 
 ## Using with Claude Desktop or Cowork
 

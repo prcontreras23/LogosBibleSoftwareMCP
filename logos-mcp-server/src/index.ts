@@ -22,6 +22,7 @@ import {
 } from "./services/sqlite-reader.js";
 import { searchCatalog, getResourceTypeSummary, typeLabel } from "./services/catalog-reader.js";
 import { captureLogosPanel, getLogosWindowTitles } from "./services/screenshot-capture.js";
+import { readPanelText } from "./services/panel-text.js";
 import type { CaptureToolType } from "./types.js";
 
 function text(s: string) {
@@ -499,6 +500,29 @@ async function main() {
       return result.success
         ? text(`Dispatched to Logos: search for "${query}" across all resources. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or capture_panel_screenshot (panel_type: 'searchall') to see the results.`)
         : err(`Failed to open search: ${result.error}`);
+    }
+  );
+
+  // ── 25. read_panel_text ───────────────────────────────────────────────────
+  server.tool(
+    "read_panel_text",
+    "Read the TEXT of the resource panel currently open in Logos (commentary, lexicon, book, Bible). Works by drag-selecting the visible text, copying it and returning the clipboard, plus the citation Logos attaches (title, editor, publisher, year, pages). Returns real text, not an image — prefer this over capture_panel_screenshot when you need to quote or analyze content. Typical flow: open_resource (or navigate_passage) → read_panel_text. Use `pages` to scroll and read several screens in one call. macOS only; moves the mouse and takes focus for a few seconds; the Logos window must not be covered by other windows.",
+    {
+      pages: z.number().int().min(1).max(20).optional().describe("How many screens to read, pressing Page Down between them (default: 1)"),
+      wait_ms: z.number().int().min(0).max(15000).optional().describe("Milliseconds to wait before reading, e.g. after open_resource (default: 0)"),
+      panel: z.union([z.enum(["left", "right", "largest"]), z.number().int().min(1)]).optional().describe("Which panel to read when several are open side by side: 'left', 'right', 'largest' (default) or a 1-based index from the left"),
+    },
+    async ({ pages, wait_ms, panel }) => {
+      if (!(await isLogosRunning())) return err("Logos is not running. Launch Logos first.");
+      try {
+        if (wait_ms) await new Promise((r) => setTimeout(r, wait_ms));
+        const result = await readPanelText(pages ?? 1, panel ?? "largest");
+        const cite = Object.entries(result.citation).map(([k, v]) => `${k}: ${v}`).join(" · ");
+        const header = `Read ${result.pages} screen(s) from Logos window "${result.window}"${cite ? `\nCitation — ${cite}` : ""}\n\n`;
+        return text(header + result.text);
+      } catch (e) {
+        return err(e instanceof Error ? e.message : String(e));
+      }
     }
   );
 
