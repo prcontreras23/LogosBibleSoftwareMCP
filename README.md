@@ -4,7 +4,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that c
 
 ## What This Does
 
-- **25 MCP tools** that let Claude read Bible text, search Scripture, navigate Logos, access your notes/highlights/favorites/clippings, check reading plans, explore word studies and factbook entries, search your library catalog, open commentaries and lexicons, run cross-resource searches, capture Logos panels for vision reading, check what Logos is showing, and diagnose environment issues
+- **29 MCP tools** that let Claude read Bible text, search Scripture, navigate Logos, access your notes/highlights/favorites/clippings, check reading plans, explore word studies and factbook entries, search your library catalog, open commentaries and lexicons, run cross-resource searches, capture Logos panels for vision reading, check what Logos is showing, and diagnose environment issues
 - **A Socratic Bible Study agent** that guides you through Scripture using questions (not lectures), welcoming any denominational background, with four questioning layers: Observation, Interpretation, Correlation, and Application
 - **A QA Tool Tester agent** that systematically exercises all tools and produces a pass/fail/skip report
 
@@ -72,7 +72,7 @@ BIBLIA_API_KEY=your_api_key_here
 claude
 ```
 
-Once Claude Code starts, type `/mcp` to check that the "logos" server appears with 25 tools.
+Once Claude Code starts, type `/mcp` to check that the "logos" server appears with 29 tools.
 
 ## Using with Claude Desktop or Cowork
 
@@ -228,6 +228,10 @@ The server auto-detects your Logos data by scanning for the per-install instance
 macOS:    ~/Library/Application Support/Logos4/Documents/<instance-id>/
 Windows:  %LOCALAPPDATA%\Logos\Documents\<instance-id>\
 ```
+
+### Your own Logos documents
+
+Four tools read the documents you create in Logos (read-only): `get_sermons` / `get_sermon` (Sermon Builder sermons, rendered as Markdown with headings, bullets, quoted passages and their references, plus series, preaching occasions and tags), `get_reading_plans` (plans with schedule and progress) and `get_passage_lists` (curated reference lists). They live in `Documents/<profile>/Documents/{Sermon,ReadingPlan,PassageList}/`.
 
 ### Licensed vs. unlicensed resources
 

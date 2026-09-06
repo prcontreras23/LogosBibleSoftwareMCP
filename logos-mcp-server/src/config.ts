@@ -128,6 +128,8 @@ export const DB_PATHS = {
   notes: join(LOGOS_DATA_DIR, "NotesToolManager", "notestool.db"),
   clippings: join(LOGOS_DATA_DIR, "Documents", "Clippings", "Clippings.db"),
   passageLists: join(LOGOS_DATA_DIR, "Documents", "PassageList", "PassageList.db"),
+  sermons: join(LOGOS_DATA_DIR, "Documents", "Sermon", "Sermon.db"),
+  readingPlans: join(LOGOS_DATA_DIR, "Documents", "ReadingPlan", "ReadingPlan.db"),
   catalog: join(LOGOS_CATALOG_DIR, "LibraryCatalog", "catalog.db"),
 } as const;
 

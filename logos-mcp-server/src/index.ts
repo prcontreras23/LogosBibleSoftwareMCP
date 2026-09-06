@@ -23,6 +23,7 @@ import {
 import { searchCatalog, getResourceTypeSummary, typeLabel } from "./services/catalog-reader.js";
 import { captureLogosPanel, getLogosWindowTitles } from "./services/screenshot-capture.js";
 import { readPanelText } from "./services/panel-text.js";
+import { getSermons, getSermon, getReadingPlans, getPassageLists } from "./services/documents-reader.js";
 import type { CaptureToolType } from "./types.js";
 
 function text(s: string) {
@@ -527,6 +528,118 @@ async function main() {
         return text(header + result.text);
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
+      }
+    }
+  );
+
+  // ── 26. get_sermons ───────────────────────────────────────────────────────
+  server.tool(
+    "get_sermons",
+    "List the user's own sermons from the Logos Sermon Builder (title, series, preaching occasions with date/venue, tags, audience). Optional full-text search across titles and sermon bodies. Use to find what the user has already preached on a passage or theme, then get_sermon for the full text.",
+    {
+      query: z.string().optional().describe("Text to find in title, series, description or sermon body (e.g. 'Samuel', 'gracia')"),
+      series: z.string().optional().describe("Filter by series name (partial match)"),
+      limit: z.number().optional().describe("Max sermons to return (default: 30)"),
+    },
+    async ({ query, series, limit }) => {
+      try {
+        const sermons = getSermons({ query, series, limit: limit ?? 30 });
+        if (sermons.length === 0) return text(query || series ? "No sermons matched the filters." : "No sermons found in the Logos Sermon Builder database.");
+        const lines = sermons.map((s) => {
+          const occ = s.occasions.map((o) => [o.date, o.venue, o.service].filter(Boolean).join(" · ")).filter(Boolean);
+          const meta = [
+            s.series ? `Series: ${s.series}${s.seriesNumber ? ` #${s.seriesNumber}` : ""}` : null,
+            occ.length ? `Preached: ${occ.join(" | ")}` : null,
+            s.tags.length ? `Tags: ${s.tags.join(", ")}` : null,
+            s.audience.length ? `Audience: ${s.audience.join(", ")}` : null,
+            `Blocks: ${s.blockCount} · Modified: ${s.modifiedDate.slice(0, 10)}`,
+          ].filter(Boolean);
+          return `- **${s.title}** (id ${s.id})\n  ${meta.join("\n  ")}`;
+        });
+        return text(`Found ${sermons.length} sermons:\n\n${lines.join("\n\n")}`);
+      } catch (e) {
+        return err(`Sermon database error: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  );
+
+  // ── 27. get_sermon ────────────────────────────────────────────────────────
+  server.tool(
+    "get_sermon",
+    "Read one of the user's sermons from the Logos Sermon Builder as Markdown, preserving the outline (headings, bullets, quoted passages with references, illustrations). Select by id (from get_sermons) or by title.",
+    {
+      id: z.number().int().optional().describe("Sermon id from get_sermons"),
+      title: z.string().optional().describe("Sermon title (exact, or partial match as fallback)"),
+    },
+    async ({ id, title }) => {
+      if (id === undefined && !title) return err("Provide either id or title.");
+      try {
+        const sermon = getSermon({ id, title });
+        if (!sermon) return text(`No sermon found for ${id !== undefined ? `id ${id}` : `title "${title}"`}.`);
+        const occ = sermon.occasions.map((o) => [o.date, o.venue, o.service].filter(Boolean).join(" · ")).filter(Boolean);
+        const header = [
+          `# ${sermon.title}`,
+          sermon.series ? `Series: ${sermon.series}` : null,
+          occ.length ? `Preached: ${occ.join(" | ")}` : null,
+          sermon.description ? `Description: ${sermon.description}` : null,
+          `Modified: ${sermon.modifiedDate.slice(0, 10)} · ${sermon.blocks.length} blocks`,
+        ].filter(Boolean).join("\n");
+        return text(`${header}\n\n---\n\n${sermon.markdown}`);
+      } catch (e) {
+        return err(`Sermon database error: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  );
+
+  // ── 28. get_reading_plans ─────────────────────────────────────────────────
+  server.tool(
+    "get_reading_plans",
+    "List the user's Logos reading plans with progress: resource, schedule, sessions read vs total, and the next unread reading. Use to see what the user is currently reading and how far along they are.",
+    {
+      include_archived: z.boolean().optional().describe("Include archived plans (default: false)"),
+    },
+    async ({ include_archived }) => {
+      try {
+        const plans = getReadingPlans({ includeArchived: include_archived ?? false });
+        if (plans.length === 0) return text("No reading plans found.");
+        const lines = plans.map((p) => {
+          const pct = p.totalSessions ? Math.round((p.readSessions / p.totalSessions) * 100) : 0;
+          const meta = [
+            p.resourceTitle ?? p.resourceId,
+            p.frequency ? `Schedule: ${p.frequency}` : null,
+            `Progress: ${p.readSessions}/${p.totalSessions} sessions (${pct}%)${p.firstDate ? ` · ${p.firstDate} → ${p.lastDate}` : ""}`,
+            p.nextUnread ? `Next: ${p.nextUnread.date} — ${p.nextUnread.reading || "(see plan)"}` : "Completed",
+            p.isArchived ? "Archived" : null,
+          ].filter(Boolean);
+          return `- **${p.title}**\n  ${meta.join("\n  ")}`;
+        });
+        return text(`Found ${plans.length} reading plans:\n\n${lines.join("\n\n")}`);
+      } catch (e) {
+        return err(`Reading plan database error: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+  );
+
+  // ── 29. get_passage_lists ─────────────────────────────────────────────────
+  server.tool(
+    "get_passage_lists",
+    "List the user's Logos passage lists (curated sets of Bible references, e.g. for visitation or memorization). Pass with_items=true to include the references of each list.",
+    {
+      query: z.string().optional().describe("Filter by list title (partial match)"),
+      with_items: z.boolean().optional().describe("Include the Bible references in each list (default: false)"),
+      limit: z.number().optional().describe("Max lists to return (default: 30)"),
+    },
+    async ({ query, with_items, limit }) => {
+      try {
+        const lists = getPassageLists({ query, withItems: with_items ?? false, limit: limit ?? 30 });
+        if (lists.length === 0) return text("No passage lists found.");
+        const lines = lists.map((l) => {
+          const head = `- **${l.title}** — ${l.itemCount} passages${l.modifiedDate ? ` · ${l.modifiedDate.slice(0, 10)}` : ""}`;
+          return l.references.length ? `${head}\n  ${l.references.join("; ")}` : head;
+        });
+        return text(`Found ${lists.length} passage lists:\n\n${lines.join("\n\n")}`);
+      } catch (e) {
+        return err(`Passage list database error: ${e instanceof Error ? e.message : String(e)}`);
       }
     }
   );
