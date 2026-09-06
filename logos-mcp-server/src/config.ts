@@ -159,4 +159,4 @@ export const MAX_CAPTURE_WAIT_MS = 15000;
 // ─── Server Info ─────────────────────────────────────────────────────────────
 
 export const SERVER_NAME = "logos-bible";
-export const SERVER_VERSION = "1.0.0";
+export const SERVER_VERSION = "1.1.0";

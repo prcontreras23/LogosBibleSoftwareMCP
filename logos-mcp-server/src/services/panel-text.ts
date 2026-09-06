@@ -20,6 +20,7 @@ import { existsSync, mkdirSync, writeFileSync } from "fs";
 import { join } from "path";
 import { HELPER_CACHE_DIR } from "../config.js";
 import { getLogosWindows } from "./screenshot-capture.js";
+import { withUiLock } from "../utils/ui-lock.js";
 import type { LogosWindow } from "../types.js";
 
 const execFileAsync = promisify(execFile);
@@ -33,6 +34,10 @@ const TEXT_TOP_OFFSET = 165;
 const TEXT_LEFT_OFFSET = 20;
 const TEXT_RIGHT_OFFSET = 40; // leaves the scrollbar out of the selection
 const TEXT_BOTTOM_OFFSET = 10;
+// When no panel window can be told apart and we fall back to the whole app
+// window, its left edge is Logos' icon sidebar (~46 px): a drag starting there
+// clicks a sidebar button instead of selecting text. Skip past it.
+const MAIN_WINDOW_SIDEBAR_WIDTH = 60;
 // A real screen of text is hundreds of chars; anything shorter means the
 // drag selected a stray word (e.g. it became a drag-and-drop) — retry.
 const MIN_BODY_CHARS = 40;
@@ -58,7 +63,10 @@ usleep(150000); ev(.leftMouseUp, p2)
 export interface PanelTextResult {
   text: string;
   citation: Record<string, string>;
+  /** Screens actually read */
   pages: number;
+  /** Screens requested — fewer were read when a later screen came back empty */
+  requestedPages: number;
   window: string;
 }
 
@@ -181,7 +189,29 @@ async function pickPanel(selector: PanelSelector): Promise<Rect | null> {
   else if (typeof selector === "number") chosen = panels[Math.min(Math.max(selector, 1), panels.length) - 1];
   else chosen = panels.reduce((b, w) => (w.width * w.height > b.width * b.height ? w : b));
 
+  if (chosen === main) {
+    if (process.env.LOGOS_DEBUG) console.error("[read_panel_text] no panel windows found; falling back to the main window minus the sidebar");
+    return { x: main.x + MAIN_WINDOW_SIDEBAR_WIDTH, y: main.y, width: main.width - MAIN_WINDOW_SIDEBAR_WIDTH, height: main.height, name: main.name };
+  }
   return { x: chosen.x, y: chosen.y, width: chosen.width, height: mainBottom - chosen.y, name: main.name };
+}
+
+/**
+ * Bring Logos to the front and confirm it is the frontmost process before
+ * sending keystrokes. Cmd+C / Page Down go to whatever app is frontmost, so
+ * this runs before every page, not just once — the user may switch windows
+ * while a multi-screen read is in progress.
+ */
+async function ensureLogosFrontmost(): Promise<void> {
+  for (let i = 0; i < 3; i++) {
+    const front = await osascript(
+      'tell application "System Events" to get name of first application process whose frontmost is true'
+    ).catch(() => "");
+    if (front === "Logos") return;
+    await osascript('tell application "Logos" to activate').catch(() => {});
+    await sleep(600);
+  }
+  throw new Error("Could not bring Logos to the front (another app keeps focus). Click on the Logos window and retry.");
 }
 
 /**
@@ -189,7 +219,12 @@ async function pickPanel(selector: PanelSelector): Promise<Rect | null> {
  * `pages > 1`, presses Page Down between copies and concatenates the
  * results (overlaps at page boundaries are not deduplicated).
  */
-export async function readPanelText(pages = 1, panel: PanelSelector = "largest"): Promise<PanelTextResult> {
+export function readPanelText(pages = 1, panel: PanelSelector = "largest"): Promise<PanelTextResult> {
+  return withUiLock(() => readPanelTextUnlocked(pages, panel));
+}
+
+/** Internal variant without the UI lock — for composites that already hold it. */
+export async function readPanelTextUnlocked(pages = 1, panel: PanelSelector = "largest"): Promise<PanelTextResult> {
   if (process.platform !== "darwin") {
     throw new Error("read_panel_text is macOS-only (uses CGEvent + pbpaste).");
   }
@@ -199,8 +234,8 @@ export async function readPanelText(pages = 1, panel: PanelSelector = "largest")
   if (!win) throw new Error("No Logos window found. Is Logos running and visible?");
 
   const previousClipboard = await readClipboard().catch(() => "");
-  await osascript('tell application "Logos" to activate');
-  await sleep(800);
+  await ensureLogosFrontmost();
+  await sleep(300);
 
   const x1 = win.x + TEXT_LEFT_OFFSET;
   const y1 = win.y + TEXT_TOP_OFFSET;
@@ -213,6 +248,7 @@ export async function readPanelText(pages = 1, panel: PanelSelector = "largest")
   for (let p = 0; p < pages; p++) {
     if (p > 0) {
       // The previous drag left keyboard focus on this panel; scroll one screen.
+      await ensureLogosFrontmost();
       await osascript('tell application "System Events" to key code 121'); // Page Down
       await sleep(1500);
     }
@@ -225,6 +261,7 @@ export async function readPanelText(pages = 1, panel: PanelSelector = "largest")
     let pageCitation: Record<string, string> = {};
     for (let attempt = 0; attempt < 3 && body.length < MIN_BODY_CHARS; attempt++) {
       await clearClipboard();
+      await ensureLogosFrontmost();
       await execFileAsync(DRAG_HELPER_BIN, [String(x1), String(y1), String(x2), String(y2)]);
       await sleep(500);
       await osascript('tell application "System Events" to keystroke "c" using command down');
@@ -261,5 +298,5 @@ export async function readPanelText(pages = 1, panel: PanelSelector = "largest")
   }
 
   const text = chunks.reduce((acc, c) => mergeOverlap(acc, c), "");
-  return { text, citation, pages: chunks.length, window: win.name };
+  return { text, citation, pages: chunks.length, requestedPages: pages, window: win.name };
 }

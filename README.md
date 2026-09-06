@@ -14,7 +14,7 @@ A [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that c
 |-------------|---------|
 | **macOS or Windows** | macOS uses the `open` command and AppleScript; Windows uses the registered `logos4:` protocol handler and `tasklist` |
 | **Logos Bible Software** | macOS: `/Applications/Logos.app` (tested with v48); Windows: standard install under `%LOCALAPPDATA%\Logos` |
-| **Node.js** | v18+ (v23+ recommended for native `fetch` support) |
+| **Node.js** | v20+ (better-sqlite3 12 no longer supports Node 18) |
 | **Claude Code** | Anthropic's CLI tool ([install guide](https://docs.anthropic.com/en/docs/claude-code)) |
 | **Biblia API Key** | Free key from [bibliaapi.com](https://bibliaapi.com/) |
 | **Xcode Command Line Tools** | `clang` is required to compile the window-capture helper used by `capture_panel_screenshot` (install: `xcode-select --install`) |
@@ -191,14 +191,14 @@ LogosBibleSoftwareMCP/
 ├── .claude/
 │   └── agents/
 │       ├── socratic-bible-study.md    # Socratic agent definition
-│       └── tool-tester.md            # QA agent for testing all 24 tools
+│       └── tool-tester.md            # QA agent for testing all 30 tools
 ├── .mcp.json                          # MCP server config (you create this)
 ├── .env                               # API key (you create this)
 ├── logos-mcp-server/
 │   ├── package.json
 │   ├── tsconfig.json
 │   ├── src/
-│   │   ├── index.ts                   # MCP server entry point (24 tools)
+│   │   ├── index.ts                   # MCP server entry point (30 tools)
 │   │   ├── cli.ts                     # Diagnose CLI entry point
 │   │   ├── config.ts                  # Paths, API config, constants
 │   │   ├── types.ts                   # Shared TypeScript types

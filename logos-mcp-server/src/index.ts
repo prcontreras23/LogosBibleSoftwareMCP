@@ -22,7 +22,8 @@ import {
 } from "./services/sqlite-reader.js";
 import { searchCatalog, getResourceTypeSummary, typeLabel } from "./services/catalog-reader.js";
 import { captureLogosPanel, getLogosWindowTitles } from "./services/screenshot-capture.js";
-import { readPanelText, type PanelSelector } from "./services/panel-text.js";
+import { readPanelText, readPanelTextUnlocked, type PanelSelector } from "./services/panel-text.js";
+import { withUiLock } from "./utils/ui-lock.js";
 import { getSermons, getSermon, getReadingPlans, getPassageLists } from "./services/documents-reader.js";
 import type { CaptureToolType } from "./types.js";
 
@@ -78,7 +79,7 @@ async function main() {
       if (!(await isLogosRunning())) {
         return text("Logos is not running. Ask the user to launch Logos first, or use get_bible_text / search_bible, which work without the app.");
       }
-      const result = await navigateToPassage(reference);
+      const result = await withUiLock(() => navigateToPassage(reference));
       return result.success
         ? text(`Dispatched to Logos: Bible passage ${reference}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the passage text from the user's own Bible (e.g. LBLA).`)
         : err(`Failed to open passage: ${result.error}`);
@@ -361,7 +362,7 @@ async function main() {
       if (!(await isLogosRunning())) {
         return text("Logos is not running. Ask the user to launch Logos first, or use get_bible_text / search_bible, which work without the app.");
       }
-      const result = await openWordStudy(word);
+      const result = await withUiLock(() => openWordStudy(word));
       return result.success
         ? text(`Dispatched to Logos: word study for "${word}". This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the word study as text.`)
         : err(`Failed to open word study: ${result.error}`);
@@ -377,7 +378,7 @@ async function main() {
       if (!(await isLogosRunning())) {
         return text("Logos is not running. Ask the user to launch Logos first, or use get_bible_text / search_bible, which work without the app.");
       }
-      const result = await openFactbook(topic);
+      const result = await withUiLock(() => openFactbook(topic));
       return result.success
         ? text(`Dispatched to Logos: Factbook entry for "${topic}". This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the Factbook entry as text.`)
         : err(`Failed to open Factbook: ${result.error}`);
@@ -464,7 +465,7 @@ async function main() {
       if (!(await isLogosRunning())) {
         return text("Logos is not running. Ask the user to launch Logos first, or use get_bible_text / search_bible, which work without the app.");
       }
-      const result = await openResource(resource_id, reference);
+      const result = await withUiLock(() => openResource(resource_id, reference));
       const refStr = reference ? ` at ${reference}` : "";
       return result.success
         ? text(`Dispatched to Logos: resource \`${resource_id}\`${refStr}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get its text (or read_resource_at to open and read in one step).`)
@@ -484,7 +485,7 @@ async function main() {
       if (!(await isLogosRunning())) {
         return text("Logos is not running. Ask the user to launch Logos first, or use get_bible_text / search_bible, which work without the app.");
       }
-      const result = await openGuide(guide_type, reference);
+      const result = await withUiLock(() => openGuide(guide_type, reference));
       return result.success
         ? text(`Dispatched to Logos: ${guide_type} for ${reference}. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the guide contents as text.`)
         : err(`Failed to open guide: ${result.error}`);
@@ -502,7 +503,7 @@ async function main() {
       if (!(await isLogosRunning())) {
         return text("Logos is not running. Ask the user to launch Logos first, or use get_bible_text / search_bible, which work without the app.");
       }
-      const result = await searchAll(query);
+      const result = await withUiLock(() => searchAll(query));
       return result.success
         ? text(`Dispatched to Logos: search for "${query}" across all resources. This only opens the Logos UI on the user's screen — no data is returned to you. Call get_logos_state to confirm what Logos is showing, or read_panel_text to get the result list as text.`)
         : err(`Failed to open search: ${result.error}`);
@@ -524,7 +525,8 @@ async function main() {
         if (wait_ms) await new Promise((r) => setTimeout(r, wait_ms));
         const result = await readPanelText(pages ?? 1, panel ?? "largest");
         const cite = Object.entries(result.citation).map(([k, v]) => `${k}: ${v}`).join(" · ");
-        const header = `Read ${result.pages} screen(s) from Logos window "${result.window}"${cite ? `\nCitation — ${cite}` : ""}\n\n`;
+        const short = result.pages < result.requestedPages ? ` (requested ${result.requestedPages}; the rest came back empty)` : "";
+        const header = `Read ${result.pages} screen(s)${short} from Logos window "${result.window}"${cite ? `\nCitation — ${cite}` : ""}\n\n`;
         return text(header + result.text);
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
@@ -657,13 +659,18 @@ async function main() {
     },
     async ({ resource_id, reference, pages, panel, wait_ms }) => {
       if (!(await isLogosRunning())) return err("Logos is not running. Launch Logos first.");
-      const opened = await openResource(resource_id, reference);
-      if (!opened.success) return err(`Failed to open resource: ${opened.error ?? "unknown error"}`);
-      await new Promise((r) => setTimeout(r, wait_ms ?? 2500));
       try {
-        const result = await readPanelText(pages ?? 3, (panel as PanelSelector | undefined) ?? "largest");
+        // One lock for the whole open → wait → read sequence so no other UI
+        // tool can change the panel in between.
+        const result = await withUiLock(async () => {
+          const opened = await openResource(resource_id, reference);
+          if (!opened.success) throw new Error(`Failed to open resource: ${opened.error ?? "unknown error"}`);
+          await new Promise((r) => setTimeout(r, wait_ms ?? 2500));
+          return readPanelTextUnlocked(pages ?? 3, (panel as PanelSelector | undefined) ?? "largest");
+        });
         const cite = Object.entries(result.citation).map(([k, v]) => `${k}: ${v}`).join(" · ");
-        const header = `${resource_id}${reference ? ` @ ${reference}` : ""} — ${result.pages} screen(s)${cite ? `\nCitation — ${cite}` : ""}\n\n`;
+        const short = result.pages < result.requestedPages ? ` (requested ${result.requestedPages}; the rest came back empty — end of the article or the panel lost focus)` : "";
+        const header = `${resource_id}${reference ? ` @ ${reference}` : ""} — ${result.pages} screen(s)${short}${cite ? `\nCitation — ${cite}` : ""}\n\n`;
         return text(header + result.text);
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
