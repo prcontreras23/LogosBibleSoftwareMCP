@@ -169,7 +169,7 @@ export function searchCatalog(options: {
   try {
     let sql = `
       SELECT ResourceId, Title, AbbreviatedTitle, Type, Authors,
-             Subjects, Description, PublicationDate, Languages, Availability
+             Subjects, Description, PublicationDate, Languages, Availability, Publishers
       FROM Records
       WHERE Availability >= 1 AND IsDataset = 0
     `;
@@ -217,6 +217,7 @@ export function searchCatalog(options: {
       PublicationDate: string | null;
       Languages: string | null;
       Availability: number | null;
+      Publishers: string | null;
     }>;
 
     return rows.map((r) => ({
@@ -230,6 +231,7 @@ export function searchCatalog(options: {
       publicationDate: r.PublicationDate,
       languages: r.Languages,
       licensed: isLicensed(r.Availability),
+      publishers: r.Publishers,
     }));
   } finally {
     db.close();

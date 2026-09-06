@@ -442,7 +442,9 @@ async function main() {
           const label = typeLabel(r.type);
           const lang = r.languages ? ` | Lang: ${r.languages}` : "";
           const lic = r.licensed ? "" : " | ⚠️ sin licencia (not owned)";
-          return `- **${r.title}**${authorStr}\n  ID: \`${r.resourceId}\` | Type: ${label}${lang}${lic}`;
+          const pub = [r.publishers, r.publicationDate].filter(Boolean).join(", ");
+          const pubStr = pub ? ` | ${pub}` : "";
+          return `- **${r.title}**${authorStr}\n  ID: \`${r.resourceId}\` | Type: ${label}${lang}${pubStr}${lic}`;
         });
         const scope = licensed_only === false ? "catalog entries (licensed and not)" : "licensed resources";
         return text(`Found ${resources.length} ${scope}:\n\n${lines.join("\n\n")}`);

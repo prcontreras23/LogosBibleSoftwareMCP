@@ -149,6 +149,8 @@ export interface CatalogResource {
   languages: string | null;
   /** true when the catalog marks the resource as licensed/downloaded (Availability = 2) */
   licensed: boolean;
+  /** Publisher(s) as stored by Logos, e.g. "Eerdmans" */
+  publishers: string | null;
 }
 
 export interface ResourceTypeSummary {
