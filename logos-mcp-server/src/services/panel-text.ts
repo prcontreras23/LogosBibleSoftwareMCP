@@ -171,6 +171,33 @@ export function splitCitation(raw: string): { body: string; citation: Record<str
   return { body: lines.slice(0, end).join("\n").trim(), citation };
 }
 
+/**
+ * Newer Logos builds no longer append the `%T/%A/...` fields on copy: with
+ * "Copy Citations" on they paste the citation **already formatted** in the
+ * style from Settings → Citation Style, as a trailing block after a blank
+ * line. Detect that block so it can be surfaced as the citation instead of
+ * being transcribed as if it were part of the resource's prose.
+ *
+ * Deliberately conservative: a trailing block only counts as a citation when
+ * it is short, single-paragraph, carries a 4-digit year, and looks like a
+ * reference (publisher/city colon, or a parenthesised year). Anything else is
+ * left in the body — a missed citation is recoverable, swallowed prose is not.
+ */
+export function splitTrailingCitation(body: string): { body: string; citation: string | null } {
+  const blocks = body.replace(/\r\n?/g, "\n").split(/\n\s*\n/);
+  if (blocks.length < 2) return { body, citation: null };
+  const last = blocks[blocks.length - 1].trim();
+  const looksLikeCitation =
+    last.length > 0 &&
+    last.length <= 400 &&
+    !last.includes("\n") &&
+    /\b(1[5-9]\d{2}|20\d{2})\b/.test(last) &&
+    (/[A-Za-zÀ-ÿ.]+:\s/.test(last) || /\((1[5-9]\d{2}|20\d{2})\)/.test(last)) &&
+    /\.$/.test(last);
+  if (!looksLikeCitation) return { body, citation: null };
+  return { body: blocks.slice(0, -1).join("\n\n").trim(), citation: last };
+}
+
 export type PanelSelector = "left" | "right" | "largest" | number;
 
 interface Rect { x: number; y: number; width: number; height: number; name: string }

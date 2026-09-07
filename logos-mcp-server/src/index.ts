@@ -24,6 +24,7 @@ import { searchCatalog, getResourceTypeSummary, typeLabel } from "./services/cat
 import { captureLogosPanel, getLogosWindowTitles } from "./services/screenshot-capture.js";
 import { readPanelText, readPanelTextUnlocked, type PanelSelector } from "./services/panel-text.js";
 import { getCitationStyle, formatCitation } from "./services/citation-style.js";
+import { splitTrailingCitation } from "./services/panel-text.js";
 import { withUiLock } from "./utils/ui-lock.js";
 import { getSermons, getSermon, getReadingPlans, getPassageLists } from "./services/documents-reader.js";
 import type { CaptureToolType } from "./types.js";
@@ -85,6 +86,24 @@ function renderCitation(fields: Record<string, string>): string {
   if (!formatted) return raw;
   const head = formatted.short ? `${formatted.short} ${formatted.full}` : formatted.full;
   return `[${style ?? "estilo no detectado"}] ${head}\n  Campos — ${raw}`;
+}
+
+/**
+ * Two shapes reach us depending on the Logos build: the `%X` metadata fields
+ * (formatted here, from Settings → Citation Style) or a citation Logos already
+ * formatted in that same style and pasted at the end of the copy. Prefer
+ * whatever Logos formatted itself — it is authoritative for the user's style.
+ */
+function citationFor(result: { text: string; citation: Record<string, string> }): {
+  text: string;
+  cite: string;
+} {
+  const fromFields = renderCitation(result.citation);
+  if (fromFields) return { text: result.text, cite: fromFields };
+  const { body, citation } = splitTrailingCitation(result.text);
+  if (!citation) return { text: result.text, cite: "" };
+  const style = getCitationStyle();
+  return { text: body, cite: `[${style ?? "estilo de Logos"}] ${citation}` };
 }
 
   // ── 1. navigate_passage ──────────────────────────────────────────────────
@@ -543,10 +562,10 @@ function renderCitation(fields: Record<string, string>): string {
       try {
         if (wait_ms) await new Promise((r) => setTimeout(r, wait_ms));
         const result = await readPanelText(pages ?? 1, panel ?? "largest");
-        const cite = renderCitation(result.citation);
+        const { text: bodyText, cite } = citationFor(result);
         const short = result.pages < result.requestedPages ? ` (requested ${result.requestedPages}; the rest came back empty)` : "";
         const header = `Read ${result.pages} screen(s)${short} from Logos window "${result.window}"${cite ? `\nCitation — ${cite}` : ""}\n\n`;
-        return text(header + result.text);
+        return text(header + bodyText);
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
       }
@@ -687,10 +706,10 @@ function renderCitation(fields: Record<string, string>): string {
           await new Promise((r) => setTimeout(r, wait_ms ?? 2500));
           return readPanelTextUnlocked(pages ?? 3, (panel as PanelSelector | undefined) ?? "largest");
         });
-        const cite = renderCitation(result.citation);
+        const { text: bodyText, cite } = citationFor(result);
         const short = result.pages < result.requestedPages ? ` (requested ${result.requestedPages}; the rest came back empty — end of the article or the panel lost focus)` : "";
         const header = `${resource_id}${reference ? ` @ ${reference}` : ""} — ${result.pages} screen(s)${short}${cite ? `\nCitation — ${cite}` : ""}\n\n`;
-        return text(header + result.text);
+        return text(header + bodyText);
       } catch (e) {
         return err(e instanceof Error ? e.message : String(e));
       }
