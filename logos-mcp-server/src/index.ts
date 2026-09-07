@@ -23,6 +23,7 @@ import {
 import { searchCatalog, getResourceTypeSummary, typeLabel } from "./services/catalog-reader.js";
 import { captureLogosPanel, getLogosWindowTitles } from "./services/screenshot-capture.js";
 import { readPanelText, readPanelTextUnlocked, type PanelSelector } from "./services/panel-text.js";
+import { getCitationStyle, formatCitation } from "./services/citation-style.js";
 import { withUiLock } from "./utils/ui-lock.js";
 import { getSermons, getSermon, getReadingPlans, getPassageLists } from "./services/documents-reader.js";
 import type { CaptureToolType } from "./types.js";
@@ -69,6 +70,22 @@ function canonicalReference(input: string): string | null {
 
 async function main() {
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
+
+
+/**
+ * Render the citation Logos appends on copy using the style the user picked in
+ * Settings → Citation Style. Falls back to the raw field list if the style is
+ * unknown or the fields are too sparse.
+ */
+function renderCitation(fields: Record<string, string>): string {
+  if (Object.keys(fields).length === 0) return "";
+  const style = getCitationStyle();
+  const formatted = formatCitation(fields, style);
+  const raw = Object.entries(fields).map(([k, v]) => `${k}: ${v}`).join(" · ");
+  if (!formatted) return raw;
+  const head = formatted.short ? `${formatted.short} ${formatted.full}` : formatted.full;
+  return `[${style ?? "estilo no detectado"}] ${head}\n  Campos — ${raw}`;
+}
 
   // ── 1. navigate_passage ──────────────────────────────────────────────────
   server.tool(
@@ -526,7 +543,7 @@ async function main() {
       try {
         if (wait_ms) await new Promise((r) => setTimeout(r, wait_ms));
         const result = await readPanelText(pages ?? 1, panel ?? "largest");
-        const cite = Object.entries(result.citation).map(([k, v]) => `${k}: ${v}`).join(" · ");
+        const cite = renderCitation(result.citation);
         const short = result.pages < result.requestedPages ? ` (requested ${result.requestedPages}; the rest came back empty)` : "";
         const header = `Read ${result.pages} screen(s)${short} from Logos window "${result.window}"${cite ? `\nCitation — ${cite}` : ""}\n\n`;
         return text(header + result.text);
@@ -670,7 +687,7 @@ async function main() {
           await new Promise((r) => setTimeout(r, wait_ms ?? 2500));
           return readPanelTextUnlocked(pages ?? 3, (panel as PanelSelector | undefined) ?? "largest");
         });
-        const cite = Object.entries(result.citation).map(([k, v]) => `${k}: ${v}`).join(" · ");
+        const cite = renderCitation(result.citation);
         const short = result.pages < result.requestedPages ? ` (requested ${result.requestedPages}; the rest came back empty — end of the article or the panel lost focus)` : "";
         const header = `${resource_id}${reference ? ` @ ${reference}` : ""} — ${result.pages} screen(s)${short}${cite ? `\nCitation — ${cite}` : ""}\n\n`;
         return text(header + result.text);

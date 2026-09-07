@@ -131,6 +131,8 @@ export const DB_PATHS = {
   sermons: join(LOGOS_DATA_DIR, "Documents", "Sermon", "Sermon.db"),
   readingPlans: join(LOGOS_DATA_DIR, "Documents", "ReadingPlan", "ReadingPlan.db"),
   catalog: join(LOGOS_CATALOG_DIR, "LibraryCatalog", "catalog.db"),
+  // Settings → Citation Style lives here (LogosDesktop/CurrentCitationFormat).
+  preferences: join(LOGOS_BASE, "UserPreferences2", "PreferencesManager.db"),
 } as const;
 
 // ─── Biblia API ──────────────────────────────────────────────────────────────
