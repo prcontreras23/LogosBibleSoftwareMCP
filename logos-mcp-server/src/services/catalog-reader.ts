@@ -135,14 +135,25 @@ export function resolveTypeFilter(input: string): string[] {
 
 // ─── Licensing ──────────────────────────────────────────────────────────────
 // The Logos catalog mixes owned resources with ones merely visible for
-// purchase/preview. Empirically (Logos v48 macOS, verified against titles the
-// user confirmed not owning): Availability = 2 → licensed and downloaded,
+// purchase/preview. Empirically (Logos v53 macOS, verified across two accounts):
+// Availability = 1 → licensed but not yet downloaded to disk,
+// Availability = 2 → licensed and downloaded,
 // Availability = 3 → in catalog but not licensed (none of those have a
-// resource file on disk). Treat 2 as licensed; anything else as not.
-export const LICENSED_AVAILABILITY = 2;
+// resource file on disk). Treat 1 and 2 as licensed.
+//
+// An earlier revision treated only 2 as licensed. That held on an account whose
+// whole library was already downloaded (no row was ever a 1), but it hides the
+// bulk of a freshly added account: reading a resource's text needs the file on
+// disk, so `downloaded` is reported separately from `licensed`.
+export const DOWNLOADED_AVAILABILITY = 2;
+export const LICENSED_AVAILABILITY_MAX = 2;
 
 export function isLicensed(availability: number | null | undefined): boolean {
-  return availability === LICENSED_AVAILABILITY;
+  return availability != null && availability >= 1 && availability <= LICENSED_AVAILABILITY_MAX;
+}
+
+export function isDownloaded(availability: number | null | undefined): boolean {
+  return availability === DOWNLOADED_AVAILABILITY;
 }
 
 // Records.Languages is a space/comma separated list of ISO codes ("es", "en grc").
@@ -176,8 +187,8 @@ export function searchCatalog(options: {
     const params: unknown[] = [];
 
     if (options.licensedOnly !== false) {
-      sql += " AND Availability = ?";
-      params.push(LICENSED_AVAILABILITY);
+      sql += " AND Availability <= ?";
+      params.push(LICENSED_AVAILABILITY_MAX);
     }
     if (options.language) {
       const clause = languageClause(options.language);
@@ -231,6 +242,7 @@ export function searchCatalog(options: {
       publicationDate: r.PublicationDate,
       languages: r.Languages,
       licensed: isLicensed(r.Availability),
+      downloaded: isDownloaded(r.Availability),
       publishers: r.Publishers,
     }));
   } finally {
@@ -246,8 +258,8 @@ export function getResourceTypeSummary(options: { licensedOnly?: boolean; langua
     let where = "Availability >= 1 AND IsDataset = 0";
     const params: unknown[] = [];
     if (options.licensedOnly !== false) {
-      where += " AND Availability = ?";
-      params.push(LICENSED_AVAILABILITY);
+      where += " AND Availability <= ?";
+      params.push(LICENSED_AVAILABILITY_MAX);
     }
     if (options.language) {
       const clause = languageClause(options.language);

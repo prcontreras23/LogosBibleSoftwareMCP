@@ -147,8 +147,10 @@ export interface CatalogResource {
   publicationDate: string | null;
   /** ISO language codes as stored by Logos, e.g. "es" or "en grc" */
   languages: string | null;
-  /** true when the catalog marks the resource as licensed/downloaded (Availability = 2) */
+  /** true when the catalog marks the resource as licensed (Availability 1 or 2) */
   licensed: boolean;
+  /** true when the resource file is on disk and its text can be read (Availability = 2) */
+  downloaded?: boolean;
   /** Publisher(s) as stored by Logos, e.g. "Eerdmans" */
   publishers: string | null;
 }
