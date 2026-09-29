@@ -3,6 +3,7 @@
 import { existsSync } from "fs";
 import Database from "better-sqlite3";
 import { LOGOS_DATA_DIR, LOGOS_CATALOG_DIR, DB_PATHS, BIBLIA_API_KEY } from "./config.js";
+import { runHealthChecks, formatHealthChecks } from "./services/health.js";
 
 let ok = true;
 
@@ -45,5 +46,10 @@ if (openable) {
 // The key is optional: only the Biblia-backed Bible-text tools need it.
 console.log(`\nBIBLIA_API_KEY: ${BIBLIA_API_KEY ? "set" : "NOT SET (optional — Bible-text tools need it; Logos-local tools work without it)"}`);
 
-console.log(`\nStatus: ${ok ? "All checks passed" : "Some checks failed"}`);
+console.log("\nComprobaciones de funcionamiento:");
+const checks = await runHealthChecks();
+for (const line of formatHealthChecks(checks)) console.log(line);
+const fallas = checks.filter((c) => c.ok === false).length;
+
+console.log(`\nStatus: ${ok ? "All checks passed" : "Some checks failed"}${fallas ? ` · ${fallas} comprobación(es) con falla (ver arriba)` : ""}`);
 process.exit(ok ? 0 : 1);

@@ -17,7 +17,8 @@
     "claude"
   ],
   "files": [
-    "dist"
+    "dist",
+    "helpers"
   ],
   "bin": {
     "logos-mcp": "dist/index.js",

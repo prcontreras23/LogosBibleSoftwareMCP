@@ -21,7 +21,8 @@ import {
   getUserNotes,
 } from "./services/sqlite-reader.js";
 import { searchCatalog, getResourceTypeSummary, typeLabel } from "./services/catalog-reader.js";
-import { captureLogosPanel, getLogosWindowTitles } from "./services/screenshot-capture.js";
+import { captureLogosPanel, describeLogosWindows } from "./services/screenshot-capture.js";
+import { runHealthChecks, formatHealthChecks } from "./services/health.js";
 import { readPanelText, readPanelTextUnlocked, type PanelSelector } from "./services/panel-text.js";
 import { getCitationStyle, formatCitation } from "./services/citation-style.js";
 import { splitTrailingCitation } from "./services/panel-text.js";
@@ -724,9 +725,9 @@ function citationFor(result: { text: string; citation: Record<string, string> })
     async () => {
       const running = await isLogosRunning();
       if (!running) return text("Logos is not running.");
-      const titles = await getLogosWindowTitles();
-      const lines = titles.length > 0 ? titles.map((t) => `- ${t}`) : ["- (no named windows found)"];
-      return text(`Logos is running. Window titles:\n${lines.join("\n")}`);
+      const { titles, problem } = await describeLogosWindows();
+      if (problem) return text(`Logos is running.\n${problem}`);
+      return text(`Logos is running. Window titles:\n${titles.map((t) => `- ${t}`).join("\n")}`);
     }
   );
 
@@ -873,7 +874,7 @@ function citationFor(result: { text: string; citation: Record<string, string> })
   // ── 24. diagnose ──────────────────────────────────────────────────────────
   server.tool(
     "diagnose",
-    "Check the server's own environment: Logos data paths, database availability, and Biblia API configuration. Returns a diagnostic report. Use when other tools fail with missing-database or missing-key errors to pinpoint the setup problem.",
+    "Check the server's own environment: Logos data paths, database availability, a real test call with the Biblia API key, the native screen helpers, macOS Accessibility and Screen Recording permissions, and whether Logos is open. Returns a diagnostic report. Use when other tools fail with missing-database or missing-key errors to pinpoint the setup problem.",
     {},
     async () => {
       const lines: string[] = [];
@@ -915,6 +916,10 @@ function citationFor(result: { text: string; citation: Record<string, string> })
       lines.push("");
       lines.push(`### API Configuration\n`);
       lines.push(`**BIBLIA_API_KEY**: ${BIBLIA_API_KEY ? "set" : "NOT SET"}`);
+
+      lines.push("");
+      lines.push("### Comprobaciones de funcionamiento\n");
+      lines.push(...formatHealthChecks(await runHealthChecks()));
 
       return text(lines.join("\n"));
     }

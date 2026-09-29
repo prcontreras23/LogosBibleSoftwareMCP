@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { normalizeResultCount } from "../src/services/biblia-api.js";
+import { normalizeResultCount, bibliaErrorMessage } from "../src/services/biblia-api.js";
 
 describe("normalizeResultCount", () => {
   it("uses the reported count when it is a non-negative number", () => {
@@ -26,5 +26,19 @@ describe("normalizeForBiblia", () => {
   it("passes through what the parser cannot handle", async () => {
     const { normalizeForBiblia } = await import("../src/services/biblia-api.js");
     expect(normalizeForBiblia("Gen 1:1; Exod 2:1")).toBe("Gen 1:1; Exod 2:1");
+  });
+});
+
+describe("bibliaErrorMessage", () => {
+  it("explains a rejected key and how to get one, without HTML", () => {
+    const msg = bibliaErrorMessage(403, "<html><head><title>403 Forbidden</title></head><body>…</body></html>");
+    expect(msg).toContain("rechazó la clave");
+    expect(msg).toContain("api.biblia.com/v1/Users/SignIn");
+    expect(msg).not.toContain("<");
+  });
+
+  it("reduces an unknown HTML error page to its title", () => {
+    const msg = bibliaErrorMessage(500, "<html><head><title>Server Error</title></head><body>" + "x".repeat(5000) + "</body></html>");
+    expect(msg).toBe("La API de Biblia respondió con error 500: Server Error.");
   });
 });

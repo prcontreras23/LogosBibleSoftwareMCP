@@ -16,7 +16,7 @@
 
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { ensureNativeHelper } from "./helpers.js";
 import { join } from "path";
 import { HELPER_CACHE_DIR } from "../config.js";
 import { getLogosWindows } from "./screenshot-capture.js";
@@ -25,7 +25,7 @@ import type { LogosWindow } from "../types.js";
 
 const execFileAsync = promisify(execFile);
 
-const DRAG_HELPER_BIN = join(HELPER_CACHE_DIR, "logos-drag-helper");
+export const DRAG_HELPER_BIN = join(HELPER_CACHE_DIR, "logos-drag-helper");
 const DRAG_HELPER_SRC = join(HELPER_CACHE_DIR, "logos-drag-helper.swift");
 
 // Region of the panel that holds the reading text, as offsets from the panel
@@ -61,7 +61,7 @@ const MAIN_WINDOW_SIDEBAR_WIDTH = (() => {
   return Number.isInteger(n) && n >= 0 && n <= 500 ? n : 60;
 })();
 
-const SWIFT_SOURCE = `
+export const SWIFT_SOURCE = `
 import Foundation
 import CoreGraphics
 let a = CommandLine.arguments.dropFirst().map { Double($0)! }
@@ -91,10 +91,13 @@ export interface PanelTextResult {
 
 /** Compile the CGEvent drag helper if missing (exported so installers can pre-build it). */
 export async function ensureDragHelper(): Promise<void> {
-  if (existsSync(DRAG_HELPER_BIN)) return;
-  mkdirSync(HELPER_CACHE_DIR, { recursive: true, mode: 0o700 });
-  writeFileSync(DRAG_HELPER_SRC, SWIFT_SOURCE);
-  await execFileAsync("swiftc", ["-O", "-o", DRAG_HELPER_BIN, DRAG_HELPER_SRC]);
+  await ensureNativeHelper({
+    name: "logos-drag-helper",
+    bin: DRAG_HELPER_BIN,
+    src: DRAG_HELPER_SRC,
+    source: SWIFT_SOURCE,
+    compile: () => execFileAsync("swiftc", ["-O", "-o", DRAG_HELPER_BIN, DRAG_HELPER_SRC]),
+  });
 }
 
 async function osascript(script: string): Promise<string> {

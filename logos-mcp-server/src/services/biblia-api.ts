@@ -2,9 +2,32 @@ import { BIBLIA_API_KEY, BIBLIA_API_BASE, DEFAULT_BIBLE } from "../config.js";
 import { toBibliaRef } from "./reference-parser.js";
 import type { BibleTextResult, BibleSearchResult, BibleSearchHit, ScanResult, CompareResult, BibleInfo } from "../types.js";
 
+const COMO_CONSEGUIR_CLAVE =
+  "Para conseguir una clave gratuita: entra con tu cuenta de Faithlife (la misma de Logos) en " +
+  "https://api.biblia.com/v1/Users/SignIn, crea una clave (dirección web: localhost) y colócala tú mismo " +
+  "con ~/logos-para-claude/clave-biblia.sh (Mac) o volviendo a correr el instalador con -ClaveBiblia (Windows). " +
+  "Mientras tanto, el texto se puede leer en tu Logos con navigate_passage o read_resource_at.";
+
+/** Readable message for a failed Biblia response: no HTML blobs, and the fix when it is the key. */
+export function bibliaErrorMessage(status: number, body: string): string {
+  if (status === 401 || status === 403) {
+    return `La API de Biblia rechazó la clave (error ${status}): la clave es inválida, se desactivó o no está aprobada. ${COMO_CONSEGUIR_CLAVE}`;
+  }
+  if (status === 404) {
+    return "La API de Biblia no encontró ese pasaje o esa versión (error 404). Revisa la referencia o prueba otra versión con get_available_bibles.";
+  }
+  if (status === 429) {
+    return "La API de Biblia está limitando las consultas (error 429). Espera un minuto y vuelve a intentarlo.";
+  }
+  // Keep only readable text: error bodies are often whole HTML pages.
+  const title = /<title>([^<]*)<\/title>/i.exec(body)?.[1]?.trim();
+  const plain = (title || body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim()).slice(0, 160);
+  return `La API de Biblia respondió con error ${status}${plain ? `: ${plain}` : ""}.`;
+}
+
 async function bibliaFetch(path: string, params: Record<string, string>): Promise<unknown> {
   if (!BIBLIA_API_KEY) {
-    throw new Error("BIBLIA_API_KEY is not set. Get a free key at https://bibliaapi.com");
+    throw new Error(`No hay clave de la API de Biblia (BIBLIA_API_KEY), así que las herramientas de texto bíblico por internet están apagadas; todo lo de Logos funciona igual. ${COMO_CONSEGUIR_CLAVE}`);
   }
 
   const url = new URL(`${BIBLIA_API_BASE}${path}`);
@@ -13,12 +36,15 @@ async function bibliaFetch(path: string, params: Record<string, string>): Promis
     url.searchParams.set(k, v);
   }
 
-  const res = await fetch(url.toString());
+  let res: Response;
+  try {
+    res = await fetch(url.toString(), { signal: AbortSignal.timeout(15000) });
+  } catch {
+    throw new Error("No hubo conexión con api.biblia.com (sin internet, o el servicio no respondió). El texto se puede leer en tu Logos con navigate_passage o read_resource_at.");
+  }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    // Error bodies can be full HTML blobs — keep the message digestible.
-    const snippet = body.length > 200 ? `${body.slice(0, 200)}…` : body;
-    throw new Error(`Biblia API error ${res.status}: ${snippet}`);
+    throw new Error(bibliaErrorMessage(res.status, body));
   }
 
   const contentType = res.headers.get("content-type") ?? "";
@@ -26,6 +52,17 @@ async function bibliaFetch(path: string, params: Record<string, string>): Promis
     return res.json();
   }
   return res.text();
+}
+
+/** Real test call for diagnose: says whether the key works, without revealing it. */
+export async function checkBibliaKey(): Promise<{ ok: boolean; message: string }> {
+  if (!BIBLIA_API_KEY) return { ok: false, message: "no configurada (opcional: solo la usan las herramientas de texto bíblico por internet)" };
+  try {
+    await bibliaFetch("/content/LEB.txt", { passage: "John 3:16" });
+    return { ok: true, message: "válida (consulta de prueba a Juan 3:16 respondida)" };
+  } catch (e) {
+    return { ok: false, message: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 export async function getBibleText(

@@ -9,14 +9,14 @@
 
 import { execFile } from "child_process";
 import { promisify } from "util";
-import { existsSync, mkdirSync, writeFileSync } from "fs";
+import { existsSync } from "fs";
+import { ensureNativeHelper } from "./helpers.js";
 import { readFile, unlink } from "fs/promises";
 import { join } from "path";
 import { toLogosUrlRef } from "./reference-parser.js";
 import { isLogosRunning } from "./logos-app.js";
 import { withUiLock } from "../utils/ui-lock.js";
 import {
-  HELPER_CACHE_DIR,
   WINDOW_HELPER_BIN,
   WINDOW_HELPER_SRC,
   SCREENSHOT_TEMP_DIR,
@@ -29,7 +29,7 @@ const execFileAsync = promisify(execFile);
 
 // ─── Objective-C helper source ──────────────────────────────────────────────
 
-const OBJ_C_SOURCE = `
+export const OBJ_C_SOURCE = `
 #import <CoreGraphics/CoreGraphics.h>
 #import <Foundation/Foundation.h>
 
@@ -73,16 +73,19 @@ int main(int argc, const char * argv[]) {
 
 /** Compile the CGWindowList helper if missing (exported so installers can pre-build it). */
 export async function ensureHelper(): Promise<void> {
-  if (!existsSync(WINDOW_HELPER_BIN)) {
-    mkdirSync(HELPER_CACHE_DIR, { recursive: true, mode: 0o700 });
-    writeFileSync(WINDOW_HELPER_SRC, OBJ_C_SOURCE);
-    await execFileAsync("clang", [
-      "-framework", "CoreGraphics",
-      "-framework", "Foundation",
-      "-o", WINDOW_HELPER_BIN,
-      WINDOW_HELPER_SRC,
-    ]);
-  }
+  await ensureNativeHelper({
+    name: "logos-window-helper",
+    bin: WINDOW_HELPER_BIN,
+    src: WINDOW_HELPER_SRC,
+    source: OBJ_C_SOURCE,
+    compile: () =>
+      execFileAsync("clang", [
+        "-framework", "CoreGraphics",
+        "-framework", "Foundation",
+        "-o", WINDOW_HELPER_BIN,
+        WINDOW_HELPER_SRC,
+      ]),
+  });
 }
 
 // ─── Window discovery ───────────────────────────────────────────────────────
@@ -121,6 +124,35 @@ export async function getLogosWindowTitles(): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * Window titles plus the reason when there are none, for get_logos_state.
+ * macOS only reveals window titles to processes with Screen Recording
+ * permission, so "windows but no names" almost always means that permission.
+ */
+export async function describeLogosWindows(): Promise<{ titles: string[]; total: number; problem: string | null }> {
+  let windows: LogosWindow[];
+  try {
+    windows = await getLogosWindows();
+  } catch (e) {
+    return { titles: [], total: 0, problem: `No pude leer las ventanas de Logos: ${e instanceof Error ? e.message : String(e)}` };
+  }
+  const titles = windows.map((w) => w.name).filter((name): name is string => Boolean(name));
+  if (windows.length === 0) {
+    return { titles, total: 0, problem: "Logos está abierto, pero no tiene ventanas visibles en este escritorio (¿minimizado, oculto o en otro escritorio?)." };
+  }
+  if (titles.length === 0) {
+    return {
+      titles,
+      total: windows.length,
+      problem:
+        `Logos tiene ${windows.length} ventana(s), pero macOS no deja leer sus títulos: falta el permiso de Grabación de pantalla ` +
+        `para la app desde la que corre Claude (Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla). ` +
+        `Después de activarlo, cierra y vuelve a abrir esa app.`,
+    };
+  }
+  return { titles, total: windows.length, problem: null };
 }
 
 // ─── URL building ───────────────────────────────────────────────────────────
